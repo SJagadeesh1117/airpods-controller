@@ -25,15 +25,32 @@ jobs:
             "build-tools;34.0.0" \
             "platform-tools" || true
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.1.1'
+      - name: Verify Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "--- platforms ---"
+          ls $ANDROID_HOME/platforms/ || echo "none"
+          echo "--- build-tools ---"
+          ls $ANDROID_HOME/build-tools/ || echo "none"
+
+      - name: Install Gradle 8.1.1
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -P /tmp
+          unzip -q /tmp/gradle-8.1.1-bin.zip -d /tmp
+          echo "/tmp/gradle-8.1.1/bin" >> $GITHUB_PATH
 
       - name: Build Release APK
-        run: gradle assembleRelease --stacktrace
+        run: gradle assembleRelease --stacktrace --no-daemon 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /tmp/build.log
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: AirPodsController-release
