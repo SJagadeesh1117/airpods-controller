@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- ── Header ── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="AirPods Pro 2"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Jagadeesh's Buds"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_muted"/>
+            </LinearLayout>
+
+            <!-- Connection badge -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/badge_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginStart="8dp">
+
+                <View
+                    android:id="@+id/viewConnDot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/dot_green"
+                    android:layout_marginEnd="6dp"/>
+
+                <TextView
+                    android:id="@+id/tvConnectionStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Connected"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/green"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ── Battery Card ── -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="BATTERY"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="12dp"/>
+
+                <!-- Ear Detection Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="LEFT" android:textSize="10sp" android:textColor="@color/text_muted"/>
+                        <TextView android:id="@+id/tvLeftEar" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="--"
+                            android:textSize="13sp" android:textStyle="bold"/>
+                    </LinearLayout>
+
+                    <View android:layout_width="1dp" android:layout_height="match_parent"
+                        android:background="@color/divider"/>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="RIGHT" android:textSize="10sp" android:textColor="@color/text_muted"/>
+                        <TextView android:id="@+id/tvRightEar" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="--"
+                            android:textSize="13sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Battery bars -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/tvBattLeft" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="L: --"
+                        android:textColor="@color/green" android:textSize="14sp" android:layout_marginBottom="4dp"/>
+                    <ProgressBar android:id="@+id/progressBattLeft" style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent" android:layout_height="6dp"
+                        android:max="100" android:progress="0" android:progressTint="@color/green"/>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/tvBattRight" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="R: --"
+                        android:textColor="@color/green" android:textSize="14sp" android:layout_marginBottom="4dp"/>
+                    <ProgressBar android:id="@+id/progressBattRight" style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent" android:layout_height="6dp"
+                        android:max="100" android:progress="0" android:progressTint="@color/green"/>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView android:id="@+id/tvBattCase" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="Case: --"
+                        android:textColor="@color/green" android:textSize="14sp" android:layout_marginBottom="4dp"/>
+                    <ProgressBar android:id="@+id/progressBattCase" style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent" android:layout_height="6dp"
+                        android:max="100" android:progress="0" android:progressTint="@color/green"/>
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ── ANC Card ── -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NOISE CONTROL"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="12dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="4">
+
+                    <Button android:id="@+id/btnAncOff"
+                        android:layout_width="0dp" android:layout_height="60dp"
+                        android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:text="Off" android:textSize="12sp"
+                        style="@style/AncButton"/>
+
+                    <Button android:id="@+id/btnAncNoise"
+                        android:layout_width="0dp" android:layout_height="60dp"
+                        android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:text="ANC" android:textSize="12sp"
+                        style="@style/AncButton"/>
+
+                    <Button android:id="@+id/btnAncTransparency"
+                        android:layout_width="0dp" android:layout_height="60dp"
+                        android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:text="Transp." android:textSize="12sp"
+                        style="@style/AncButton"/>
+
+                    <Button android:id="@+id/btnAncAdaptive"
+                        android:layout_width="0dp" android:layout_height="60dp"
+                        android:layout_weight="1"
+                        android:text="Adaptive" android:textSize="12sp"
+                        style="@style/AncButton"/>
+
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ── Smart Controls Card ── -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SMART CONTROLS"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="8dp"/>
+
+                <!-- Auto Disconnect -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:paddingTop="10dp" android:paddingBottom="10dp">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Auto-Disconnect on Removal"
+                            android:textColor="@color/text_primary" android:textSize="15sp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Disconnects BT when both buds removed"
+                            android:textColor="@color/text_muted" android:textSize="12sp"/>
+                    </LinearLayout>
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switchAutoDisconnect"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider"/>
+
+                <!-- Ear Detection -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:paddingTop="10dp" android:paddingBottom="10dp">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Ear Detection"
+                            android:textColor="@color/text_primary" android:textSize="15sp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Pause audio when buds removed"
+                            android:textColor="@color/text_muted" android:textSize="12sp"/>
+                    </LinearLayout>
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switchEarDetection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider"/>
+
+                <!-- Manual disconnect -->
+                <Button android:id="@+id/btnDisconnect"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="12dp"
+                    android:text="Disconnect Now"
+                    android:textColor="@color/red"
+                    android:backgroundTint="@color/card_bg2"
+                    app:cornerRadius="10dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ── Gestures Card ── -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="GESTURE CUSTOMIZATION"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="8dp"/>
+
+                <LinearLayout android:id="@+id/rowLeftHold" android:layout_width="match_parent"
+                    android:layout_height="50dp" android:orientation="horizontal"
+                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Left Press &amp; Hold"
+                        android:textColor="@color/text_primary" android:textSize="15sp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Noise Control ›" android:textColor="@color/accent" android:textSize="13sp"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider"/>
+
+                <LinearLayout android:id="@+id/rowRightHold" android:layout_width="match_parent"
+                    android:layout_height="50dp" android:orientation="horizontal"
+                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Right Press &amp; Hold"
+                        android:textColor="@color/text_primary" android:textSize="15sp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Noise Control ›" android:textColor="@color/accent" android:textSize="13sp"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider"/>
+
+                <LinearLayout android:id="@+id/rowLeftDouble" android:layout_width="match_parent"
+                    android:layout_height="50dp" android:orientation="horizontal"
+                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Left Double Tap"
+                        android:textColor="@color/text_primary" android:textSize="15sp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Play / Pause ›" android:textColor="@color/accent" android:textSize="13sp"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider"/>
+
+                <LinearLayout android:id="@+id/rowRightDouble" android:layout_width="match_parent"
+                    android:layout_height="50dp" android:orientation="horizontal"
+                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Right Double Tap"
+                        android:textColor="@color/text_primary" android:textSize="15sp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Play / Pause ›" android:textColor="@color/accent" android:textSize="13sp"/>
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ── Find My Buds Card ── -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FIND MY BUDS"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginBottom="12dp"/>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:weightSum="3">
+
+                    <Button android:id="@+id/btnFindLeft"
+                        android:layout_width="0dp" android:layout_height="52dp"
+                        android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:text="🔊 Left" style="@style/FindButton"/>
+
+                    <Button android:id="@+id/btnFindRight"
+                        android:layout_width="0dp" android:layout_height="52dp"
+                        android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:text="🔊 Right" style="@style/FindButton"/>
+
+                    <Button android:id="@+id/btnFindBoth"
+                        android:layout_width="0dp" android:layout_height="52dp"
+                        android:layout_weight="1"
+                        android:text="🔊 Both" style="@style/FindButton"/>
+                </LinearLayout>
+
+                <TextView android:id="@+id/tvLastSeen"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Last seen: --"
+                    android:textColor="@color/text_muted" android:textSize="13sp"
+                    android:layout_marginTop="12dp"/>
+
+                <TextView android:id="@+id/tvLastLocation"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="" android:textColor="@color/text_muted" android:textSize="12sp"/>
+
+                <Button android:id="@+id/btnOpenMap"
+                    android:layout_width="match_parent" android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Open in Google Maps"
+                    android:visibility="gone"
+                    android:backgroundTint="@color/accent"
+                    app:cornerRadius="10dp"
+                    style="@style/Widget.MaterialComponents.Button"/>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>
