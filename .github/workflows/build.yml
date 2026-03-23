@@ -25,14 +25,6 @@ jobs:
             "build-tools;34.0.0" \
             "platform-tools" || true
 
-      - name: Verify Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "--- platforms ---"
-          ls $ANDROID_HOME/platforms/ || echo "none"
-          echo "--- build-tools ---"
-          ls $ANDROID_HOME/build-tools/ || echo "none"
-
       - name: Install Gradle 8.1.1
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -P /tmp
@@ -40,14 +32,20 @@ jobs:
           echo "/tmp/gradle-8.1.1/bin" >> $GITHUB_PATH
 
       - name: Build Release APK
-        run: gradle assembleRelease --stacktrace --no-daemon 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: /tmp/build.log
+        run: |
+          gradle assembleRelease --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "## Build Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -E "FAILURE|error:|> Task|Exception|Could not|Caused by:|what went wrong" /tmp/build.log | head -40 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "### Last 30 lines" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -30 /tmp/build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          exit $BUILD_EXIT
 
       - name: Upload APK
         if: success()
