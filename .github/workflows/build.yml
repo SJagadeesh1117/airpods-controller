@@ -18,15 +18,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Download Gradle and generate wrapper
+      - name: Install Android SDK components
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -P /tmp
-          unzip -q /tmp/gradle-8.1.1-bin.zip -d /tmp
-          /tmp/gradle-8.1.1/bin/gradle wrapper --gradle-version 8.1.1
-          chmod +x gradlew
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "platform-tools" || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.1.1'
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: gradle assembleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
