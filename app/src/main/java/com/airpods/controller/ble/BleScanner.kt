@@ -3,9 +3,7 @@ package com.airpods.controller.ble
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
-import android.os.ParcelUuid
 import android.util.Log
-import java.util.UUID
 
 /**
  * Passive BLE scanner that reads AirPods advertisement packets.
