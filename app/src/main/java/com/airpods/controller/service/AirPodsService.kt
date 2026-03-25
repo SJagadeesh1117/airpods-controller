@@ -36,8 +36,12 @@ class AirPodsService : LifecycleService() {
         const val ACTION_SET_EAR_DETECT  = "com.airpods.controller.SET_EAR_DETECT"
         const val ACTION_DISCONNECT      = "com.airpods.controller.DISCONNECT"
         const val ACTION_FIND_MY_PLAY    = "com.airpods.controller.FIND_MY_PLAY"
+        const val ACTION_SET_GESTURE     = "com.airpods.controller.SET_GESTURE"
         const val EXTRA_ANC_MODE         = "anc_mode"
         const val EXTRA_ENABLED          = "enabled"
+        const val EXTRA_FIND_TARGET      = "find_target"   // "LEFT", "RIGHT", "BOTH"
+        const val EXTRA_GESTURE_TYPE     = "gesture_type"  // "LEFT_HOLD", "RIGHT_HOLD", "LEFT_DOUBLE", "RIGHT_DOUBLE"
+        const val EXTRA_GESTURE_ACTION   = "gesture_action" // GestureAction ordinal
 
         // Debounce: how long both buds must be out before auto-disconnect fires
         private const val OUT_EAR_DEBOUNCE_MS = 3000L
@@ -85,7 +89,15 @@ class AirPodsService : LifecycleService() {
                 broadcastState()
             }
             ACTION_DISCONNECT -> disconnectBluetooth()
-            ACTION_FIND_MY_PLAY -> playFindMySound()
+            ACTION_FIND_MY_PLAY -> {
+                val target = intent.getStringExtra(EXTRA_FIND_TARGET) ?: "BOTH"
+                playFindMySound(target)
+            }
+            ACTION_SET_GESTURE -> {
+                val type   = intent?.getStringExtra(EXTRA_GESTURE_TYPE)
+                val action = GestureAction.values()[intent?.getIntExtra(EXTRA_GESTURE_ACTION, 0) ?: 0]
+                if (type != null) saveGesturePreference(type, action)
+            }
         }
         return START_STICKY
     }
@@ -304,7 +316,14 @@ class AirPodsService : LifecycleService() {
         }
     }
 
-    private fun playFindMySound() {
+    private fun saveGesturePreference(type: String, action: GestureAction) {
+        getSharedPreferences("gestures", MODE_PRIVATE).edit()
+            .putInt(type, action.ordinal)
+            .apply()
+        Log.d(TAG, "Gesture saved: $type → ${action.displayName}")
+    }
+
+    private fun playFindMySound(target: String = "BOTH") {
         // Play a loud repeating tone via AudioManager
         val ringtoneUri = android.media.RingtoneManager.getDefaultUri(
             android.media.RingtoneManager.TYPE_ALARM
@@ -325,7 +344,7 @@ class AirPodsService : LifecycleService() {
             vibrator?.vibrate(pattern, -1)
         }
 
-        Log.d(TAG, "Find My sound playing")
+        Log.d(TAG, "Find My sound playing — target: $target")
     }
 
     // ─── Notification ─────────────────────────────────────────────────────────

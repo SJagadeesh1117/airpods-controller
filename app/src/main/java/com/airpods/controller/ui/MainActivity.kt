@@ -30,6 +30,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var currentState = AirPodsState()
+    private var lastLat = 0.0
+    private var lastLng = 0.0
 
     // ─── Permission Launcher ──────────────────────────────────────────────────
 
@@ -65,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupUI()
+        loadGesturePreferences()
         requestPermissionsAndStart()
         registerReceiver()
     }
@@ -153,16 +156,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Find My Buds
-        binding.btnFindLeft.setOnClickListener   { activateFindMy() }
-        binding.btnFindRight.setOnClickListener  { activateFindMy() }
-        binding.btnFindBoth.setOnClickListener   { activateFindMy() }
+        binding.btnFindLeft.setOnClickListener   { activateFindMy("LEFT") }
+        binding.btnFindRight.setOnClickListener  { activateFindMy("RIGHT") }
+        binding.btnFindBoth.setOnClickListener   { activateFindMy("BOTH") }
         binding.btnOpenMap.setOnClickListener    { openLastLocationInMaps() }
 
         // Gesture rows
-        binding.rowLeftHold.setOnClickListener  { showGesturePicker("Left Press & Hold") }
-        binding.rowRightHold.setOnClickListener { showGesturePicker("Right Press & Hold") }
-        binding.rowLeftDouble.setOnClickListener  { showGesturePicker("Left Double Tap") }
-        binding.rowRightDouble.setOnClickListener { showGesturePicker("Right Double Tap") }
+        binding.rowLeftHold.setOnClickListener  { showGesturePicker("Left Press & Hold",  "LEFT_HOLD",   binding.tvLeftHoldAction) }
+        binding.rowRightHold.setOnClickListener { showGesturePicker("Right Press & Hold", "RIGHT_HOLD",  binding.tvRightHoldAction) }
+        binding.rowLeftDouble.setOnClickListener  { showGesturePicker("Left Double Tap",  "LEFT_DOUBLE", binding.tvLeftDoubleAction) }
+        binding.rowRightDouble.setOnClickListener { showGesturePicker("Right Double Tap", "RIGHT_DOUBLE",binding.tvRightDoubleAction) }
     }
 
     // ─── State → UI ───────────────────────────────────────────────────────────
@@ -219,13 +222,13 @@ class MainActivity : AppCompatActivity() {
 
         // Find My last location
         if (lastSeen > 0) {
+            this.lastLat = lastLat
+            this.lastLng = lastLng
             val fmt = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
             binding.tvLastSeen.text = "Last seen: ${fmt.format(Date(lastSeen))}"
             binding.tvLastLocation.text = "%.5f, %.5f".format(lastLat, lastLng)
             binding.btnOpenMap.visibility = View.VISIBLE
-            currentState = currentState.copy(
-                lastSeenTimestamp = lastSeen
-            )
+            currentState = currentState.copy(lastSeenTimestamp = lastSeen)
         }
     }
 
@@ -256,28 +259,61 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "ANC: ${mode.displayName}", Toast.LENGTH_SHORT).show()
     }
 
-    private fun activateFindMy() {
-        sendServiceAction(AirPodsService.ACTION_FIND_MY_PLAY)
-        Toast.makeText(this, "Playing sound on AirPods…", Toast.LENGTH_SHORT).show()
+    private fun activateFindMy(target: String) {
+        sendServiceAction(AirPodsService.ACTION_FIND_MY_PLAY) {
+            putExtra(AirPodsService.EXTRA_FIND_TARGET, target)
+        }
+        val label = when (target) {
+            "LEFT"  -> "left bud"
+            "RIGHT" -> "right bud"
+            else    -> "both buds"
+        }
+        Toast.makeText(this, "Playing sound on $label…", Toast.LENGTH_SHORT).show()
     }
 
     private fun openLastLocationInMaps() {
-        val lat = currentState.lastKnownLocation?.latitude ?: return
-        val lng = currentState.lastKnownLocation?.longitude ?: return
-        val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(AirPods+Last+Seen)")
+        if (lastLat == 0.0 && lastLng == 0.0) return
+        val uri = Uri.parse("geo:$lastLat,$lastLng?q=$lastLat,$lastLng(AirPods+Last+Seen)")
         startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
             setPackage("com.google.android.apps.maps")
         })
     }
 
-    private fun showGesturePicker(gestureLabel: String) {
+    private fun loadGesturePreferences() {
+        val prefs = getSharedPreferences("gestures", MODE_PRIVATE)
+        val gestureKeys = listOf(
+            "LEFT_HOLD"   to binding.tvLeftHoldAction,
+            "RIGHT_HOLD"  to binding.tvRightHoldAction,
+            "LEFT_DOUBLE" to binding.tvLeftDoubleAction,
+            "RIGHT_DOUBLE" to binding.tvRightDoubleAction
+        )
+        val defaults = mapOf(
+            "LEFT_HOLD"   to GestureAction.NOISE_CONTROL,
+            "RIGHT_HOLD"  to GestureAction.NOISE_CONTROL,
+            "LEFT_DOUBLE" to GestureAction.PLAY_PAUSE,
+            "RIGHT_DOUBLE" to GestureAction.PLAY_PAUSE
+        )
+        for ((key, tv) in gestureKeys) {
+            val ordinal = prefs.getInt(key, defaults[key]!!.ordinal)
+            tv.text = "${GestureAction.values()[ordinal].displayName} ›"
+        }
+    }
+
+    private fun showGesturePicker(gestureLabel: String, gestureKey: String,
+                                   valueView: android.widget.TextView) {
         val options = GestureAction.values().map { it.displayName }.toTypedArray()
         android.app.AlertDialog.Builder(this)
             .setTitle(gestureLabel)
             .setItems(options) { _, which ->
                 val action = GestureAction.values()[which]
-                Toast.makeText(this, "$gestureLabel → ${action.displayName}", Toast.LENGTH_SHORT).show()
-                // In a full app: persist this preference and send to service
+                valueView.text = "${action.displayName} ›"
+                getSharedPreferences("gestures", MODE_PRIVATE).edit()
+                    .putInt(gestureKey, action.ordinal)
+                    .apply()
+                sendServiceAction(AirPodsService.ACTION_SET_GESTURE) {
+                    putExtra(AirPodsService.EXTRA_GESTURE_TYPE, gestureKey)
+                    putExtra(AirPodsService.EXTRA_GESTURE_ACTION, action.ordinal)
+                }
             }
             .show()
     }
