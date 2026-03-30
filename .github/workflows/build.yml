@@ -73,73 +73,34 @@ jobs:
               print("Comment posted:", r.status)
           PYEOF
 
+      - name: Locate APK
+        if: success()
+        id: apk
+        run: |
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          echo "Found: $APK"
+          echo "path=$APK" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: success()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          python3 - <<'PYEOF'
-          import os, json, glob, urllib.request
-          from datetime import datetime
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-${{ github.run_number }}
+          name: AirPods Controller v1.0.0-${{ github.run_number }}
+          body: |
+            ## AirPods Pro 2 Controller
 
-          token = os.environ['GITHUB_TOKEN']
-          repo  = os.environ['GITHUB_REPOSITORY']
-          sha   = os.environ['GITHUB_SHA']
-          version = "v1.0.0-" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            Build from commit ${{ github.sha }}
 
-          release_body = {
-              "tag_name": version,
-              "name": "AirPods Controller " + version,
-              "body": (
-                  "## AirPods Pro 2 Controller\n\n"
-                  "Build from commit " + sha + "\n\n"
-                  "### Features\n"
-                  "- Battery status (L/R/Case) via BLE\n"
-                  "- Ear detection + auto-pause audio\n"
-                  "- Auto-disconnect Bluetooth on removal\n"
-                  "- ANC control (Off/Noise Cancel/Transparency/Adaptive)\n"
-                  "- Find My Buds with GPS + alarm sound\n"
-                  "- Gesture customization\n\n"
-                  "### Install\n"
-                  "Download APK, enable 'Install from unknown sources', then install."
-              ),
-              "draft": False,
-              "prerelease": False
-          }
+            ### Features
+            - Battery status (L/R/Case) via BLE advertisement parsing
+            - Ear detection — pause audio when buds removed
+            - Auto-disconnect Bluetooth when both buds taken out
+            - ANC control (Off / Noise Cancel / Transparency / Adaptive)
+            - Find My Buds — last known GPS location + alarm sound
+            - Gesture customization (Play/Pause, Next, Prev, ANC cycle, Volume)
 
-          req = urllib.request.Request(
-              "https://api.github.com/repos/" + repo + "/releases",
-              data=json.dumps(release_body).encode(),
-              headers={
-                  "Authorization": "token " + token,
-                  "Content-Type": "application/json",
-                  "Accept": "application/vnd.github.v3+json"
-              }
-          )
-          with urllib.request.urlopen(req) as r:
-              release = json.loads(r.read())
-          upload_url = release['upload_url'].split('{')[0]
-          print("Release created:", release['html_url'])
-
-          apk_files = glob.glob("app/build/outputs/apk/debug/*.apk")
-          if not apk_files:
-              raise FileNotFoundError("No APK found in app/build/outputs/apk/debug/")
-          apk_path = apk_files[0]
-          print("Uploading:", apk_path)
-          with open(apk_path, 'rb') as f:
-              apk_data = f.read()
-
-          up_req = urllib.request.Request(
-              upload_url + "?name=AirPodsController-debug.apk",
-              data=apk_data,
-              headers={
-                  "Authorization": "token " + token,
-                  "Content-Type": "application/vnd.android.package-archive",
-                  "Accept": "application/vnd.github.v3+json"
-              }
-          )
-          with urllib.request.urlopen(up_req) as r:
-              print("APK uploaded, status:", r.status)
-          PYEOF
+            ### Install
+            Download `AirPodsController-debug.apk`, enable **Install from unknown sources** in Android Settings, then install.
+          files: ${{ steps.apk.outputs.path }}
+          fail_on_unmatched_files: true
