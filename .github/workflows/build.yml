@@ -80,23 +80,8 @@ jobs:
         run: |
           VERSION="v1.0.0-$(date +'%Y%m%d%H%M%S')"
           APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          NOTES="## AirPods Pro 2 Controller\n\nBuild from commit ${{ github.sha }}\n\n### Features\n- Battery status via BLE\n- Ear detection + auto-pause\n- Auto-disconnect Bluetooth\n- ANC control (Off/Noise Cancel/Transparency/Adaptive)\n- Find My Buds with GPS\n- Gesture customization\n\n### Install\nDownload APK, enable 'Install from unknown sources', then install."
           gh release create "$VERSION" \
             --title "AirPods Controller $VERSION" \
-            --notes "$(cat <<'NOTES'
-          ## AirPods Pro 2 Controller
-
-          Automated build from commit ${{ github.sha }}
-
-          ### Features
-          - Battery status (Left, Right, Case) via BLE advertisement parsing
-          - Ear detection — pause audio when buds removed
-          - Auto-disconnect Bluetooth when both buds taken out
-          - ANC control (Off / Noise Cancel / Transparency / Adaptive) via iAP2 packets
-          - Find My Buds — last known GPS location + alarm sound
-          - Gesture customization
-
-          ### Install
-          Download the APK, enable "Install from unknown sources" in Android Settings, then install.
-          NOTES
-          )" \
+            --notes "$NOTES" \
             "$APK#AirPodsController-debug.apk"
