@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.*
-import android.location.Location
 import android.media.AudioManager
 import android.os.*
 import android.util.Log
@@ -18,33 +17,27 @@ import com.airpods.controller.ble.BleScanner
 import com.airpods.controller.ui.MainActivity
 import com.google.android.gms.location.*
 
-/**
- * Foreground service that runs continuously to:
- *   1. BLE-scan for AirPods advertisements (battery + ear detection)
- *   2. Detect ear removal → pause audio → optionally disconnect Bluetooth
- *   3. Log last-known GPS location for Find My Buds
- *   4. Broadcast state changes to MainActivity
- */
 class AirPodsService : LifecycleService() {
 
     companion object {
         private const val TAG = "AirPodsService"
         const val NOTIF_ID = 1001
-        const val ACTION_STATE_UPDATE    = "com.airpods.controller.STATE_UPDATE"
-        const val ACTION_SET_ANC         = "com.airpods.controller.SET_ANC"
-        const val ACTION_SET_AUTO_DISC   = "com.airpods.controller.SET_AUTO_DISC"
-        const val ACTION_SET_EAR_DETECT  = "com.airpods.controller.SET_EAR_DETECT"
-        const val ACTION_DISCONNECT      = "com.airpods.controller.DISCONNECT"
-        const val ACTION_FIND_MY_PLAY    = "com.airpods.controller.FIND_MY_PLAY"
-        const val ACTION_SET_GESTURE     = "com.airpods.controller.SET_GESTURE"
-        const val EXTRA_ANC_MODE         = "anc_mode"
-        const val EXTRA_ENABLED          = "enabled"
-        const val EXTRA_FIND_TARGET      = "find_target"   // "LEFT", "RIGHT", "BOTH"
-        const val EXTRA_GESTURE_TYPE     = "gesture_type"  // "LEFT_HOLD", "RIGHT_HOLD", "LEFT_DOUBLE", "RIGHT_DOUBLE"
-        const val EXTRA_GESTURE_ACTION   = "gesture_action" // GestureAction ordinal
+        const val ACTION_STATE_UPDATE   = "com.airpods.controller.STATE_UPDATE"
+        const val ACTION_SET_ANC        = "com.airpods.controller.SET_ANC"
+        const val ACTION_SET_AUTO_DISC  = "com.airpods.controller.SET_AUTO_DISC"
+        const val ACTION_SET_EAR_DETECT = "com.airpods.controller.SET_EAR_DETECT"
+        const val ACTION_DISCONNECT     = "com.airpods.controller.DISCONNECT"
+        const val ACTION_FIND_MY_PLAY   = "com.airpods.controller.FIND_MY_PLAY"
+        const val ACTION_SET_GESTURE    = "com.airpods.controller.SET_GESTURE"
+        const val EXTRA_ANC_MODE        = "anc_mode"
+        const val EXTRA_ENABLED         = "enabled"
+        const val EXTRA_FIND_TARGET     = "find_target"
+        const val EXTRA_GESTURE_TYPE    = "gesture_type"
+        const val EXTRA_GESTURE_ACTION  = "gesture_action"
 
-        // Debounce: how long both buds must be out before auto-disconnect fires
         private const val OUT_EAR_DEBOUNCE_MS = 3000L
+        // If no BLE advertisement is seen for this long, mark as out of range
+        private const val BLE_TIMEOUT_MS = 30_000L
     }
 
     private var state = AirPodsState()
@@ -56,20 +49,35 @@ class AirPodsService : LifecycleService() {
     private var outEarRunnable: Runnable? = null
     private var connectedDevice: BluetoothDevice? = null
 
+    // Fires when no BLE advertisement is received for BLE_TIMEOUT_MS
+    private val bleTimeoutRunnable = Runnable {
+        Log.d(TAG, "BLE timeout — AirPods out of range")
+        state = state.copy(
+            isConnected  = false,
+            batteryLeft  = -1,
+            batteryRight = -1,
+            batteryCase  = -1,
+            leftInEar    = false,
+            rightInEar   = false
+        )
+        updateNotification()
+        broadcastState()
+    }
+
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
-        audioManager = getSystemService(AudioManager::class.java)
-        bleScanner   = BleScanner(this)
+        audioManager  = getSystemService(AudioManager::class.java)
+        bleScanner    = BleScanner(this)
         iapController = IapController(this)
         fusedLocation = LocationServices.getFusedLocationProviderClient(this)
 
-        setupBleScanner()
         startForegroundNotification()
-        startLocationUpdates()
         registerBluetoothReceiver()
-        resolveConnectedAirPods()
+        resolveConnectedAirPods()   // check if already connected via BT Classic
+        setupBleScanner()
+        startLocationUpdates()
         loadGesturePreferences()
     }
 
@@ -77,8 +85,7 @@ class AirPodsService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_SET_ANC -> {
-                val modeOrdinal = intent.getIntExtra(EXTRA_ANC_MODE, 0)
-                val mode = AncMode.values()[modeOrdinal]
+                val mode = AncMode.values()[intent.getIntExtra(EXTRA_ANC_MODE, 0)]
                 handleSetAnc(mode)
             }
             ACTION_SET_AUTO_DISC -> {
@@ -90,13 +97,10 @@ class AirPodsService : LifecycleService() {
                 broadcastState()
             }
             ACTION_DISCONNECT -> disconnectBluetooth()
-            ACTION_FIND_MY_PLAY -> {
-                val target = intent.getStringExtra(EXTRA_FIND_TARGET) ?: "BOTH"
-                playFindMySound(target)
-            }
+            ACTION_FIND_MY_PLAY -> playFindMySound(intent.getStringExtra(EXTRA_FIND_TARGET) ?: "BOTH")
             ACTION_SET_GESTURE -> {
-                val type   = intent?.getStringExtra(EXTRA_GESTURE_TYPE)
-                val action = GestureAction.values()[intent?.getIntExtra(EXTRA_GESTURE_ACTION, 0) ?: 0]
+                val type   = intent.getStringExtra(EXTRA_GESTURE_TYPE)
+                val action = GestureAction.values()[intent.getIntExtra(EXTRA_GESTURE_ACTION, 0)]
                 if (type != null) saveGesturePreference(type, action)
             }
         }
@@ -124,6 +128,12 @@ class AirPodsService : LifecycleService() {
         val wasLeftIn  = state.leftInEar
         val wasRightIn = state.rightInEar
 
+        // Reset the out-of-range timeout every time we see a fresh advertisement
+        handler.removeCallbacks(bleTimeoutRunnable)
+        handler.postDelayed(bleTimeoutRunnable, BLE_TIMEOUT_MS)
+
+        // BLE advertisement = AirPods are nearby and broadcasting.
+        // Mark as connected and update battery/ear data.
         state = state.copy(
             isConnected  = true,
             deviceAddress = data.address,
@@ -134,19 +144,15 @@ class AirPodsService : LifecycleService() {
             rightInEar   = data.inEarRight
         )
 
-        // Ear detection logic
         if (state.earDetectionEnabled) {
-            val bothOutNow   = !data.inEarLeft && !data.inEarRight
-            val eitherWasIn  = wasLeftIn || wasRightIn
+            val bothOutNow  = !data.inEarLeft && !data.inEarRight
+            val eitherWasIn = wasLeftIn || wasRightIn
 
             if (bothOutNow && eitherWasIn) {
-                // Start debounce timer — if still out after delay, trigger actions
                 outEarRunnable?.let { handler.removeCallbacks(it) }
-                outEarRunnable = Runnable {
-                    onBothBudsRemoved()
-                }.also { handler.postDelayed(it, OUT_EAR_DEBOUNCE_MS) }
+                outEarRunnable = Runnable { onBothBudsRemoved() }
+                    .also { handler.postDelayed(it, OUT_EAR_DEBOUNCE_MS) }
             } else if (data.inEarLeft || data.inEarRight) {
-                // Bud re-inserted — cancel pending disconnect
                 outEarRunnable?.let { handler.removeCallbacks(it) }
                 outEarRunnable = null
             }
@@ -158,16 +164,10 @@ class AirPodsService : LifecycleService() {
 
     private fun onBothBudsRemoved() {
         Log.d(TAG, "Both buds removed — pausing audio")
-
-        // Pause audio
         audioManager.dispatchMediaKeyEvent(
-            android.view.KeyEvent(
-                android.view.KeyEvent.ACTION_DOWN,
-                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE
-            )
+            android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
         )
-
-        // Auto-disconnect if enabled
         if (state.autoDisconnectEnabled) {
             Log.d(TAG, "Auto-disconnect triggered")
             disconnectBluetooth()
@@ -179,7 +179,7 @@ class AirPodsService : LifecycleService() {
     private fun handleSetAnc(mode: AncMode) {
         val device = connectedDevice
         if (device == null) {
-            Log.w(TAG, "No connected AirPods device for ANC command")
+            Log.w(TAG, "ANC: no BT Classic connection — command skipped")
             return
         }
         iapController.onResult = { success, error ->
@@ -194,35 +194,43 @@ class AirPodsService : LifecycleService() {
         iapController.sendAncMode(device, mode)
     }
 
-    // ─── Bluetooth State ──────────────────────────────────────────────────────
+    // ─── Bluetooth Classic state ───────────────────────────────────────────────
 
     private val btReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            @Suppress("DEPRECATION")
+            val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+            if (!isAirPods(device)) return
+
             when (intent.action) {
                 BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                    @Suppress("DEPRECATION")
-                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-                    if (isAirPods(device)) {
-                        connectedDevice = device
-                        state = state.copy(isConnected = true)
-                        saveLastLocation()
-                        broadcastState()
-                        Log.d(TAG, "AirPods connected: ${device?.address}")
-                    }
+                    connectedDevice = device
+                    state = state.copy(
+                        isConnected  = true,
+                        deviceAddress = device!!.address,
+                        deviceName   = getDeviceName(device)
+                    )
+                    // Cancel BLE timeout — we have a real BT connection now
+                    handler.removeCallbacks(bleTimeoutRunnable)
+                    saveLastLocation()
+                    updateNotification()
+                    broadcastState()
+                    Log.d(TAG, "AirPods BT connected: ${device.address}")
                 }
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                    @Suppress("DEPRECATION")
-                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-                    if (isAirPods(device)) {
-                        connectedDevice = null
-                        state = state.copy(
-                            isConnected  = false,
-                            leftInEar    = false,
-                            rightInEar   = false
-                        )
-                        broadcastState()
-                        Log.d(TAG, "AirPods disconnected")
-                    }
+                    connectedDevice = null
+                    handler.removeCallbacks(bleTimeoutRunnable)
+                    state = state.copy(
+                        isConnected  = false,
+                        batteryLeft  = -1,
+                        batteryRight = -1,
+                        batteryCase  = -1,
+                        leftInEar    = false,
+                        rightInEar   = false
+                    )
+                    updateNotification()
+                    broadcastState()
+                    Log.d(TAG, "AirPods BT disconnected")
                 }
             }
         }
@@ -236,19 +244,46 @@ class AirPodsService : LifecycleService() {
         registerReceiver(btReceiver, filter)
     }
 
+    /**
+     * On startup, check if AirPods are already connected via Bluetooth Classic.
+     * Uses reflection to check actual connection state (not just bonded/paired).
+     */
     private fun resolveConnectedAirPods() {
         try {
             val bm = getSystemService(BluetoothManager::class.java)
             @Suppress("MissingPermission")
-            bm.adapter?.bondedDevices?.firstOrNull { isAirPods(it) }?.let { device ->
-                connectedDevice = device
-                state = state.copy(isConnected = true, deviceAddress = device.address)
-                broadcastState()
-            }
+            bm.adapter?.bondedDevices
+                ?.filter { isAirPods(it) }
+                ?.firstOrNull { isDeviceActuallyConnected(it) }
+                ?.let { device ->
+                    connectedDevice = device
+                    state = state.copy(
+                        isConnected  = true,
+                        deviceAddress = device.address,
+                        deviceName   = getDeviceName(device)
+                    )
+                    broadcastState()
+                    Log.d(TAG, "AirPods already connected: ${device.address}")
+                }
         } catch (e: SecurityException) {
-            Log.e(TAG, "Permission error resolving paired devices: ${e.message}")
+            Log.e(TAG, "Permission error: ${e.message}")
         }
     }
+
+    /** Reflection-based check for actual BT connection state (works on Android 8+). */
+    private fun isDeviceActuallyConnected(device: BluetoothDevice): Boolean {
+        return try {
+            @Suppress("MissingPermission")
+            val method = device.javaClass.getMethod("isConnected")
+            method.invoke(device) as Boolean
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun getDeviceName(device: BluetoothDevice): String =
+        try { device.name ?: "AirPods" } catch (_: SecurityException) { "AirPods" }
 
     @Suppress("MissingPermission")
     private fun isAirPods(device: BluetoothDevice?): Boolean {
@@ -263,14 +298,68 @@ class AirPodsService : LifecycleService() {
     private fun disconnectBluetooth() {
         try {
             connectedDevice?.let { device ->
-                // Use BluetoothDevice reflection to call disconnect (no public API)
                 val method = device.javaClass.getMethod("disconnect")
                 method.invoke(device)
-                Log.d(TAG, "Disconnect called on device")
+                Log.d(TAG, "Disconnect called")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Disconnect error: ${e.message}")
-            // Fallback: disable/enable adapter (last resort, more disruptive)
+        }
+    }
+
+    // ─── Gesture handling ─────────────────────────────────────────────────────
+
+    private fun loadGesturePreferences() {
+        val prefs = getSharedPreferences("gestures", MODE_PRIVATE)
+        state = state.copy(
+            leftHoldAction  = GestureAction.values()[prefs.getInt("LEFT_HOLD",    GestureAction.NOISE_CONTROL.ordinal)],
+            rightHoldAction = GestureAction.values()[prefs.getInt("RIGHT_HOLD",   GestureAction.NOISE_CONTROL.ordinal)],
+            leftDoubleTap   = GestureAction.values()[prefs.getInt("LEFT_DOUBLE",  GestureAction.PLAY_PAUSE.ordinal)],
+            rightDoubleTap  = GestureAction.values()[prefs.getInt("RIGHT_DOUBLE", GestureAction.PLAY_PAUSE.ordinal)]
+        )
+    }
+
+    private fun saveGesturePreference(type: String, action: GestureAction) {
+        getSharedPreferences("gestures", MODE_PRIVATE).edit()
+            .putInt(type, action.ordinal).apply()
+        state = when (type) {
+            "LEFT_HOLD"    -> state.copy(leftHoldAction  = action)
+            "RIGHT_HOLD"   -> state.copy(rightHoldAction = action)
+            "LEFT_DOUBLE"  -> state.copy(leftDoubleTap   = action)
+            "RIGHT_DOUBLE" -> state.copy(rightDoubleTap  = action)
+            else           -> state
+        }
+    }
+
+    fun dispatchGestureAction(action: GestureAction) {
+        when (action) {
+            GestureAction.PLAY_PAUSE    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            GestureAction.NEXT_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+            GestureAction.PREV_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            GestureAction.NOISE_CONTROL -> cycleAncMode()
+            GestureAction.SIRI         -> launchVoiceAssistant()
+            GestureAction.VOLUME_UP    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_UP)
+            GestureAction.VOLUME_DOWN  -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_DOWN)
+            GestureAction.OFF          -> { /* no-op */ }
+        }
+    }
+
+    private fun dispatchMediaKey(keyCode: Int) {
+        audioManager.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
+        audioManager.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+    }
+
+    private fun cycleAncMode() {
+        val modes = AncMode.values()
+        handleSetAnc(modes[(state.ancMode.ordinal + 1) % modes.size])
+    }
+
+    private fun launchVoiceAssistant() {
+        try {
+            startActivity(Intent("android.intent.action.ASSIST")
+                .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not launch voice assistant: ${e.message}")
         }
     }
 
@@ -280,7 +369,6 @@ class AirPodsService : LifecycleService() {
         val req = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 30_000L)
             .setMinUpdateIntervalMillis(10_000L)
             .build()
-
         try {
             fusedLocation.requestLocationUpdates(req, locationCallback, Looper.getMainLooper())
         } catch (e: SecurityException) {
@@ -294,7 +382,7 @@ class AirPodsService : LifecycleService() {
                 if (state.isConnected) {
                     state = state.copy(
                         lastKnownLocation = loc,
-                        lastSeenTimestamp  = System.currentTimeMillis()
+                        lastSeenTimestamp = System.currentTimeMillis()
                     )
                 }
             }
@@ -305,10 +393,7 @@ class AirPodsService : LifecycleService() {
         try {
             fusedLocation.lastLocation.addOnSuccessListener { loc ->
                 loc?.let {
-                    state = state.copy(
-                        lastKnownLocation = it,
-                        lastSeenTimestamp  = System.currentTimeMillis()
-                    )
+                    state = state.copy(lastKnownLocation = it, lastSeenTimestamp = System.currentTimeMillis())
                     broadcastState()
                 }
             }
@@ -317,86 +402,12 @@ class AirPodsService : LifecycleService() {
         }
     }
 
-    private fun loadGesturePreferences() {
-        val prefs = getSharedPreferences("gestures", MODE_PRIVATE)
-        state = state.copy(
-            leftHoldAction  = GestureAction.values()[prefs.getInt("LEFT_HOLD",   GestureAction.NOISE_CONTROL.ordinal)],
-            rightHoldAction = GestureAction.values()[prefs.getInt("RIGHT_HOLD",  GestureAction.NOISE_CONTROL.ordinal)],
-            leftDoubleTap   = GestureAction.values()[prefs.getInt("LEFT_DOUBLE", GestureAction.PLAY_PAUSE.ordinal)],
-            rightDoubleTap  = GestureAction.values()[prefs.getInt("RIGHT_DOUBLE",GestureAction.PLAY_PAUSE.ordinal)]
-        )
-        Log.d(TAG, "Gesture preferences loaded")
-    }
-
-    private fun saveGesturePreference(type: String, action: GestureAction) {
-        getSharedPreferences("gestures", MODE_PRIVATE).edit()
-            .putInt(type, action.ordinal)
-            .apply()
-        state = when (type) {
-            "LEFT_HOLD"    -> state.copy(leftHoldAction  = action)
-            "RIGHT_HOLD"   -> state.copy(rightHoldAction = action)
-            "LEFT_DOUBLE"  -> state.copy(leftDoubleTap   = action)
-            "RIGHT_DOUBLE" -> state.copy(rightDoubleTap  = action)
-            else -> state
-        }
-        Log.d(TAG, "Gesture saved: $type → ${action.displayName}")
-    }
-
-    fun dispatchGestureAction(action: GestureAction) {
-        Log.d(TAG, "Dispatching gesture action: ${action.displayName}")
-        when (action) {
-            GestureAction.PLAY_PAUSE    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            GestureAction.NEXT_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
-            GestureAction.PREV_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-            GestureAction.NOISE_CONTROL -> cycleAncMode()
-            GestureAction.SIRI          -> launchVoiceAssistant()
-            GestureAction.VOLUME_UP     -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_UP)
-            GestureAction.VOLUME_DOWN   -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_DOWN)
-            GestureAction.OFF           -> { /* intentionally no-op */ }
-        }
-    }
-
-    private fun dispatchMediaKey(keyCode: Int) {
-        audioManager.dispatchMediaKeyEvent(
-            android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode)
-        )
-        audioManager.dispatchMediaKeyEvent(
-            android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode)
-        )
-    }
-
-    private fun cycleAncMode() {
-        val modes = AncMode.values()
-        val nextMode = modes[(state.ancMode.ordinal + 1) % modes.size]
-        handleSetAnc(nextMode)
-    }
-
-    private fun launchVoiceAssistant() {
-        val intents = listOf(
-            Intent("android.intent.action.ASSIST").apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
-            Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply { /* fallback */ }
-        )
-        for (intent in intents) {
-            try {
-                startActivity(intent)
-                return
-            } catch (_: Exception) {}
-        }
-        Log.w(TAG, "Could not launch voice assistant")
-    }
-
     private fun playFindMySound(target: String = "BOTH") {
-        // Play a loud repeating tone via AudioManager
-        val ringtoneUri = android.media.RingtoneManager.getDefaultUri(
-            android.media.RingtoneManager.TYPE_ALARM
-        )
+        val ringtoneUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
         val ringtone = android.media.RingtoneManager.getRingtone(this, ringtoneUri)
         ringtone?.play()
-
-        // Auto-stop after 30 seconds
         handler.postDelayed({ ringtone?.stop() }, 30_000L)
 
-        // Vibrate phone as feedback
         val vibrator = getSystemService(Vibrator::class.java)
         val pattern = longArrayOf(0, 500, 200, 500, 200, 500)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -405,38 +416,31 @@ class AirPodsService : LifecycleService() {
             @Suppress("DEPRECATION")
             vibrator?.vibrate(pattern, -1)
         }
-
-        Log.d(TAG, "Find My sound playing — target: $target")
+        Log.d(TAG, "Find My sound — target: $target")
     }
 
     // ─── Notification ─────────────────────────────────────────────────────────
 
     private fun startForegroundNotification() {
         val intent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-
         val notif = NotificationCompat.Builder(this, AirPodsApp.CHANNEL_ID_SERVICE)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("AirPods Controller Active")
-            .setContentText(buildNotifText())
+            .setContentTitle("AirPods Controller")
+            .setContentText("Scanning for AirPods…")
             .setContentIntent(intent)
             .setOngoing(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-
         startForeground(NOTIF_ID, notif)
     }
 
     private fun updateNotification() {
         val nm = getSystemService(android.app.NotificationManager::class.java)
         val intent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
         val notif = NotificationCompat.Builder(this, AirPodsApp.CHANNEL_ID_SERVICE)
             .setSmallIcon(android.R.drawable.ic_media_play)
@@ -447,49 +451,44 @@ class AirPodsService : LifecycleService() {
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-
         nm.notify(NOTIF_ID, notif)
     }
 
     private fun buildNotifText(): String {
-        return if (!state.isConnected) "Not connected"
-        else {
-            val parts = mutableListOf<String>()
-            if (state.batteryLeft  >= 0) parts.add("L:${state.batteryLeft}%")
-            if (state.batteryRight >= 0) parts.add("R:${state.batteryRight}%")
-            if (state.batteryCase  >= 0) parts.add("Case:${state.batteryCase}%")
-            val earStr = when {
-                state.leftInEar && state.rightInEar -> "Both in ear"
-                state.leftInEar  -> "Left in ear"
-                state.rightInEar -> "Right in ear"
-                else             -> "Not in ear"
-            }
-            parts.add(earStr)
-            parts.joinToString(" · ")
+        if (!state.isConnected) return "Not connected — scanning…"
+        val parts = mutableListOf<String>()
+        if (state.batteryLeft  >= 0) parts.add("L:${state.batteryLeft}%")
+        if (state.batteryRight >= 0) parts.add("R:${state.batteryRight}%")
+        if (state.batteryCase  >= 0) parts.add("Case:${state.batteryCase}%")
+        val earStr = when {
+            state.leftInEar && state.rightInEar -> "Both in ear"
+            state.leftInEar  -> "Left in ear"
+            state.rightInEar -> "Right in ear"
+            else             -> "Not in ear"
         }
+        parts.add(earStr)
+        return parts.joinToString(" · ")
     }
 
     // ─── State Broadcast ──────────────────────────────────────────────────────
 
     private fun broadcastState() {
-        val intent = Intent(ACTION_STATE_UPDATE).apply {
-            putExtra("connected",      state.isConnected)
-            putExtra("device_name",    state.deviceName)
-            putExtra("battery_left",   state.batteryLeft)
-            putExtra("battery_right",  state.batteryRight)
-            putExtra("battery_case",   state.batteryCase)
-            putExtra("in_ear_left",    state.leftInEar)
-            putExtra("in_ear_right",   state.rightInEar)
-            putExtra("anc_mode",       state.ancMode.ordinal)
-            putExtra("auto_disc",      state.autoDisconnectEnabled)
-            putExtra("ear_detect",     state.earDetectionEnabled)
-            putExtra("adaptive",       state.adaptiveAudioEnabled)
-            putExtra("conv_aware",     state.conversationAwareEnabled)
-            putExtra("loud_reduction", state.loudSoundReductionEnabled)
-            putExtra("last_lat",       state.lastKnownLocation?.latitude ?: 0.0)
-            putExtra("last_lng",       state.lastKnownLocation?.longitude ?: 0.0)
-            putExtra("last_seen",      state.lastSeenTimestamp)
-        }
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(
+            Intent(ACTION_STATE_UPDATE).apply {
+                putExtra("connected",      state.isConnected)
+                putExtra("device_name",    state.deviceName)
+                putExtra("battery_left",   state.batteryLeft)
+                putExtra("battery_right",  state.batteryRight)
+                putExtra("battery_case",   state.batteryCase)
+                putExtra("in_ear_left",    state.leftInEar)
+                putExtra("in_ear_right",   state.rightInEar)
+                putExtra("anc_mode",       state.ancMode.ordinal)
+                putExtra("auto_disc",      state.autoDisconnectEnabled)
+                putExtra("ear_detect",     state.earDetectionEnabled)
+                putExtra("last_lat",       state.lastKnownLocation?.latitude ?: 0.0)
+                putExtra("last_lng",       state.lastKnownLocation?.longitude ?: 0.0)
+                putExtra("last_seen",      state.lastSeenTimestamp)
+            }
+        )
     }
 }
