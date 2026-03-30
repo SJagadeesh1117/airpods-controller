@@ -73,13 +73,11 @@ jobs:
               print("Comment posted:", r.status)
           PYEOF
 
-      - name: Locate APK
+      - name: Rename APK for release
         if: success()
-        id: apk
         run: |
-          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
-          echo "Found: $APK"
-          echo "path=$APK" >> $GITHUB_OUTPUT
+          cp $(find app/build/outputs/apk/debug -name "*.apk" | head -1) AirPodsController-debug.apk
+          echo "APK ready: $(ls -lh AirPodsController-debug.apk)"
 
       - name: Create GitHub Release
         if: success()
@@ -102,5 +100,5 @@ jobs:
 
             ### Install
             Download `AirPodsController-debug.apk`, enable **Install from unknown sources** in Android Settings, then install.
-          files: ${{ steps.apk.outputs.path }}
+          files: AirPodsController-debug.apk
           fail_on_unmatched_files: true
