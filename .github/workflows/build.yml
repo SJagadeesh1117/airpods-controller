@@ -76,8 +76,16 @@ jobs:
       - name: Rename APK for release
         if: success()
         run: |
-          cp $(find app/build/outputs/apk/debug -name "*.apk" | head -1) AirPodsController-debug.apk
-          echo "APK ready: $(ls -lh AirPodsController-debug.apk)"
+          echo "=== Searching for APK ==="
+          find app/build -name "*.apk" -type f || echo "No APKs found anywhere in app/build"
+          APK=$(find app/build -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "ERROR: No APK found"
+            exit 1
+          fi
+          echo "Copying: $APK"
+          cp "$APK" AirPodsController-debug.apk
+          ls -lh AirPodsController-debug.apk
 
       - name: Create GitHub Release
         if: success()
