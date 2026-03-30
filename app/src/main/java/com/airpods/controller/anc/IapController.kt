@@ -113,7 +113,7 @@ class IapController(private val context: Context) {
      * Builds the full iAP2 packet for an ANC mode command.
      *
      * Packet layout:
-     *   FF 55 [len] 00 [payload...] [checksum]
+     *   FF 55 LEN 00 PAYLOAD... CHECKSUM
      */
     private fun buildAncPacket(modeByte: Byte): ByteArray {
         val payload = ANC_CMD_PREFIX + byteArrayOf(modeByte)
