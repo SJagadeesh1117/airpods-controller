@@ -8,7 +8,7 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.*
-import android.support.v4.media.session.MediaSessionCompat
+import android.media.session.MediaSession
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
@@ -42,7 +42,7 @@ class AirPodsService : LifecycleService() {
     private lateinit var bleScanner: BleScanner
     private lateinit var fusedLocation: FusedLocationProviderClient
     private lateinit var audioManager: AudioManager
-    private lateinit var mediaSession: MediaSessionCompat
+    private lateinit var mediaSession: MediaSession
     private val handler = Handler(Looper.getMainLooper())
     private var outEarRunnable: Runnable? = null
     private var connectedDevice: BluetoothDevice? = null
@@ -112,13 +112,14 @@ class AirPodsService : LifecycleService() {
 
     // ─── MediaSession (intercept AirPods double-tap) ──────────────────────────
 
+    @Suppress("DEPRECATION")
     private fun setupMediaSession() {
-        mediaSession = MediaSessionCompat(this, "AirPodsController")
+        mediaSession = MediaSession(this, "AirPodsController")
         mediaSession.setFlags(
-            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
-            MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+            MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
         )
-        mediaSession.setCallback(object : MediaSessionCompat.Callback() {
+        mediaSession.setCallback(object : MediaSession.Callback() {
             override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
                 val event = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
@@ -132,7 +133,7 @@ class AirPodsService : LifecycleService() {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                         if (state.doubleTapAction != GestureAction.PLAY_PAUSE) {
                             dispatchGestureAction(state.doubleTapAction)
-                            true  // consumed — don't pass to music apps
+                            true
                         } else false
                     }
                     else -> false
