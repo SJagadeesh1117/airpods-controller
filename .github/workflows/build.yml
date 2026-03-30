@@ -77,11 +77,69 @@ jobs:
         if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          VERSION="v1.0.0-$(date +'%Y%m%d%H%M%S')"
-          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
-          NOTES="## AirPods Pro 2 Controller\n\nBuild from commit ${{ github.sha }}\n\n### Features\n- Battery status via BLE\n- Ear detection + auto-pause\n- Auto-disconnect Bluetooth\n- ANC control (Off/Noise Cancel/Transparency/Adaptive)\n- Find My Buds with GPS\n- Gesture customization\n\n### Install\nDownload APK, enable 'Install from unknown sources', then install."
-          gh release create "$VERSION" \
-            --title "AirPods Controller $VERSION" \
-            --notes "$NOTES" \
-            "$APK#AirPodsController-debug.apk"
+          python3 - <<'PYEOF'
+          import os, json, glob, urllib.request
+          from datetime import datetime
+
+          token = os.environ['GITHUB_TOKEN']
+          repo  = os.environ['GITHUB_REPOSITORY']
+          sha   = os.environ['GITHUB_SHA']
+          version = "v1.0.0-" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+
+          release_body = {
+              "tag_name": version,
+              "name": "AirPods Controller " + version,
+              "body": (
+                  "## AirPods Pro 2 Controller\n\n"
+                  "Build from commit " + sha + "\n\n"
+                  "### Features\n"
+                  "- Battery status (L/R/Case) via BLE\n"
+                  "- Ear detection + auto-pause audio\n"
+                  "- Auto-disconnect Bluetooth on removal\n"
+                  "- ANC control (Off/Noise Cancel/Transparency/Adaptive)\n"
+                  "- Find My Buds with GPS + alarm sound\n"
+                  "- Gesture customization\n\n"
+                  "### Install\n"
+                  "Download APK, enable 'Install from unknown sources', then install."
+              ),
+              "draft": False,
+              "prerelease": False
+          }
+
+          req = urllib.request.Request(
+              "https://api.github.com/repos/" + repo + "/releases",
+              data=json.dumps(release_body).encode(),
+              headers={
+                  "Authorization": "token " + token,
+                  "Content-Type": "application/json",
+                  "Accept": "application/vnd.github.v3+json"
+              }
+          )
+          with urllib.request.urlopen(req) as r:
+              release = json.loads(r.read())
+          upload_url = release['upload_url'].split('{')[0]
+          print("Release created:", release['html_url'])
+
+          apk_files = glob.glob("app/build/outputs/apk/debug/*.apk")
+          if not apk_files:
+              raise FileNotFoundError("No APK found in app/build/outputs/apk/debug/")
+          apk_path = apk_files[0]
+          print("Uploading:", apk_path)
+          with open(apk_path, 'rb') as f:
+              apk_data = f.read()
+
+          up_req = urllib.request.Request(
+              upload_url + "?name=AirPodsController-debug.apk",
+              data=apk_data,
+              headers={
+                  "Authorization": "token " + token,
+                  "Content-Type": "application/vnd.android.package-archive",
+                  "Accept": "application/vnd.github.v3+json"
+              }
+          )
+          with urllib.request.urlopen(up_req) as r:
+              print("APK uploaded, status:", r.status)
+          PYEOF
