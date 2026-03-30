@@ -70,6 +70,7 @@ class AirPodsService : LifecycleService() {
         startLocationUpdates()
         registerBluetoothReceiver()
         resolveConnectedAirPods()
+        loadGesturePreferences()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -316,11 +317,72 @@ class AirPodsService : LifecycleService() {
         }
     }
 
+    private fun loadGesturePreferences() {
+        val prefs = getSharedPreferences("gestures", MODE_PRIVATE)
+        state = state.copy(
+            leftHoldAction  = GestureAction.values()[prefs.getInt("LEFT_HOLD",   GestureAction.NOISE_CONTROL.ordinal)],
+            rightHoldAction = GestureAction.values()[prefs.getInt("RIGHT_HOLD",  GestureAction.NOISE_CONTROL.ordinal)],
+            leftDoubleTap   = GestureAction.values()[prefs.getInt("LEFT_DOUBLE", GestureAction.PLAY_PAUSE.ordinal)],
+            rightDoubleTap  = GestureAction.values()[prefs.getInt("RIGHT_DOUBLE",GestureAction.PLAY_PAUSE.ordinal)]
+        )
+        Log.d(TAG, "Gesture preferences loaded")
+    }
+
     private fun saveGesturePreference(type: String, action: GestureAction) {
         getSharedPreferences("gestures", MODE_PRIVATE).edit()
             .putInt(type, action.ordinal)
             .apply()
+        state = when (type) {
+            "LEFT_HOLD"    -> state.copy(leftHoldAction  = action)
+            "RIGHT_HOLD"   -> state.copy(rightHoldAction = action)
+            "LEFT_DOUBLE"  -> state.copy(leftDoubleTap   = action)
+            "RIGHT_DOUBLE" -> state.copy(rightDoubleTap  = action)
+            else -> state
+        }
         Log.d(TAG, "Gesture saved: $type → ${action.displayName}")
+    }
+
+    fun dispatchGestureAction(action: GestureAction) {
+        Log.d(TAG, "Dispatching gesture action: ${action.displayName}")
+        when (action) {
+            GestureAction.PLAY_PAUSE    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            GestureAction.NEXT_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+            GestureAction.PREV_TRACK    -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            GestureAction.NOISE_CONTROL -> cycleAncMode()
+            GestureAction.SIRI          -> launchVoiceAssistant()
+            GestureAction.VOLUME_UP     -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_UP)
+            GestureAction.VOLUME_DOWN   -> dispatchMediaKey(android.view.KeyEvent.KEYCODE_VOLUME_DOWN)
+            GestureAction.OFF           -> { /* intentionally no-op */ }
+        }
+    }
+
+    private fun dispatchMediaKey(keyCode: Int) {
+        audioManager.dispatchMediaKeyEvent(
+            android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode)
+        )
+        audioManager.dispatchMediaKeyEvent(
+            android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode)
+        )
+    }
+
+    private fun cycleAncMode() {
+        val modes = AncMode.values()
+        val nextMode = modes[(state.ancMode.ordinal + 1) % modes.size]
+        handleSetAnc(nextMode)
+    }
+
+    private fun launchVoiceAssistant() {
+        val intents = listOf(
+            Intent("android.intent.action.ASSIST").apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
+            Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply { /* fallback */ }
+        )
+        for (intent in intents) {
+            try {
+                startActivity(intent)
+                return
+            } catch (_: Exception) {}
+        }
+        Log.w(TAG, "Could not launch voice assistant")
     }
 
     private fun playFindMySound(target: String = "BOTH") {

@@ -1,9 +1,9 @@
-name: Build APK
+name: Build & Release APK
 
 on:
   push:
     branches:
-      - '**'
+      - main
   workflow_dispatch:
 
 permissions:
@@ -28,16 +28,13 @@ jobs:
             "build-tools;34.0.0" \
             "platform-tools" || true
 
-      - name: Install Gradle 8.1.1
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -P /tmp
-          unzip -q /tmp/gradle-8.1.1-bin.zip -d /tmp
-          echo "/tmp/gradle-8.1.1/bin" >> $GITHUB_PATH
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Build Debug APK
         id: build
         run: |
-          gradle assembleDebug --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
+          ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
           exit ${PIPESTATUS[0]}
 
       - name: Post error as commit comment
@@ -76,9 +73,30 @@ jobs:
               print("Comment posted:", r.status)
           PYEOF
 
-      - name: Upload APK
+      - name: Create GitHub Release
         if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: AirPodsController-debug
-          path: app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="v1.0.0-$(date +'%Y%m%d%H%M%S')"
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          gh release create "$VERSION" \
+            --title "AirPods Controller $VERSION" \
+            --notes "$(cat <<'NOTES'
+          ## AirPods Pro 2 Controller
+
+          Automated build from commit ${{ github.sha }}
+
+          ### Features
+          - Battery status (Left, Right, Case) via BLE advertisement parsing
+          - Ear detection — pause audio when buds removed
+          - Auto-disconnect Bluetooth when both buds taken out
+          - ANC control (Off / Noise Cancel / Transparency / Adaptive) via iAP2 packets
+          - Find My Buds — last known GPS location + alarm sound
+          - Gesture customization
+
+          ### Install
+          Download the APK, enable "Install from unknown sources" in Android Settings, then install.
+          NOTES
+          )" \
+            "$APK#AirPodsController-debug.apk"
