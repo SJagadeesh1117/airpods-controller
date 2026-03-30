@@ -168,7 +168,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ── ANC Card ── -->
+        <!-- ── ANC Info Card ── -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -190,39 +190,16 @@
                     android:textSize="11sp"
                     android:letterSpacing="0.1"
                     android:textColor="@color/text_muted"
-                    android:layout_marginBottom="12dp"/>
+                    android:layout_marginBottom="8dp"/>
 
-                <LinearLayout
+                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:weightSum="4">
+                    android:text="Noise control mode is managed by your iPhone. Open iOS Settings > Bluetooth > AirPods to configure ANC, Transparency, or Adaptive mode."
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp"/>
 
-                    <Button android:id="@+id/btnAncOff"
-                        android:layout_width="0dp" android:layout_height="60dp"
-                        android:layout_weight="1" android:layout_marginEnd="6dp"
-                        android:text="Off" android:textSize="12sp"
-                        style="@style/AncButton"/>
-
-                    <Button android:id="@+id/btnAncNoise"
-                        android:layout_width="0dp" android:layout_height="60dp"
-                        android:layout_weight="1" android:layout_marginEnd="6dp"
-                        android:text="ANC" android:textSize="12sp"
-                        style="@style/AncButton"/>
-
-                    <Button android:id="@+id/btnAncTransparency"
-                        android:layout_width="0dp" android:layout_height="60dp"
-                        android:layout_weight="1" android:layout_marginEnd="6dp"
-                        android:text="Transp." android:textSize="12sp"
-                        style="@style/AncButton"/>
-
-                    <Button android:id="@+id/btnAncAdaptive"
-                        android:layout_width="0dp" android:layout_height="60dp"
-                        android:layout_weight="1"
-                        android:text="Adaptive" android:textSize="12sp"
-                        style="@style/AncButton"/>
-
-                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -328,45 +305,17 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="GESTURE CUSTOMIZATION"
+                    android:text="DOUBLE TAP CUSTOMIZATION"
                     android:textSize="11sp"
                     android:letterSpacing="0.1"
                     android:textColor="@color/text_muted"
                     android:layout_marginBottom="8dp"/>
 
-                <LinearLayout android:id="@+id/rowLeftHold" android:layout_width="match_parent"
-                    android:layout_height="50dp" android:orientation="horizontal"
-                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="Left Press &amp; Hold"
-                        android:textColor="@color/text_primary" android:textSize="15sp"/>
-                    <TextView android:id="@+id/tvLeftHoldAction" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Noise Control ›"
-                        android:textColor="@color/accent" android:textSize="13sp"/>
-                </LinearLayout>
-
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider"/>
-
-                <LinearLayout android:id="@+id/rowRightHold" android:layout_width="match_parent"
-                    android:layout_height="50dp" android:orientation="horizontal"
-                    android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="Right Press &amp; Hold"
-                        android:textColor="@color/text_primary" android:textSize="15sp"/>
-                    <TextView android:id="@+id/tvRightHoldAction" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Noise Control ›"
-                        android:textColor="@color/accent" android:textSize="13sp"/>
-                </LinearLayout>
-
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider"/>
-
                 <LinearLayout android:id="@+id/rowLeftDouble" android:layout_width="match_parent"
                     android:layout_height="50dp" android:orientation="horizontal"
                     android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="Left Double Tap"
+                        android:layout_weight="1" android:text="Double Tap (any bud)"
                         android:textColor="@color/text_primary" android:textSize="15sp"/>
                     <TextView android:id="@+id/tvLeftDoubleAction" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Play / Pause ›"
@@ -380,7 +329,7 @@
                     android:layout_height="50dp" android:orientation="horizontal"
                     android:gravity="center_vertical" android:background="?attr/selectableItemBackground">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="Right Double Tap"
+                        android:layout_weight="1" android:text="Double Tap (any bud)"
                         android:textColor="@color/text_primary" android:textSize="15sp"/>
                     <TextView android:id="@+id/tvRightDoubleAction" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Play / Pause ›"
