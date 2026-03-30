@@ -212,6 +212,11 @@ class AirPodsService : LifecycleService() {
                     )
                     // Cancel BLE timeout — we have a real BT connection now
                     handler.removeCallbacks(bleTimeoutRunnable)
+                    // Try to read battery immediately via hidden API (Android 13+)
+                    val initialBattery = readBatteryLevel(device)
+                    if (initialBattery >= 0) {
+                        state = state.copy(batteryLeft = initialBattery, batteryRight = initialBattery)
+                    }
                     saveLastLocation()
                     updateNotification()
                     broadcastState()
@@ -232,6 +237,21 @@ class AirPodsService : LifecycleService() {
                     broadcastState()
                     Log.d(TAG, "AirPods BT disconnected")
                 }
+                "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED" -> {
+                    if (isAirPods(device)) {
+                        val level = intent.getIntExtra(
+                            "android.bluetooth.device.extra.BATTERY_LEVEL", -1)
+                        if (level >= 0) {
+                            Log.d(TAG, "BT battery update: $level%")
+                            // Only use BT battery if BLE hasn't given us per-bud levels
+                            val left  = if (state.batteryLeft  >= 0) state.batteryLeft  else level
+                            val right = if (state.batteryRight >= 0) state.batteryRight else level
+                            state = state.copy(batteryLeft = left, batteryRight = right)
+                            updateNotification()
+                            broadcastState()
+                        }
+                    }
+                }
             }
         }
     }
@@ -240,6 +260,8 @@ class AirPodsService : LifecycleService() {
         val filter = IntentFilter().apply {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            // Battery level reports from BT stack (works when AirPods connected via HFP/A2DP)
+            addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
         }
         registerReceiver(btReceiver, filter)
     }
@@ -278,6 +300,16 @@ class AirPodsService : LifecycleService() {
             method.invoke(device) as Boolean
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /** Read battery level via hidden API getBatteryLevel() — works on Android 13+. Returns -1 if unavailable. */
+    private fun readBatteryLevel(device: BluetoothDevice): Int {
+        return try {
+            val method = device.javaClass.getMethod("getBatteryLevel")
+            (method.invoke(device) as Int)
+        } catch (e: Exception) {
+            -1
         }
     }
 
