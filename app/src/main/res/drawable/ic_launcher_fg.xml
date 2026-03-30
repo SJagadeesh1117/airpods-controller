@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Headphones icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,20 C35.2,20 20,35.2 20,54 L20,68 C20,71.3 22.7,74 26,74 L32,74 C35.3,74 38,71.3 38,68 L38,58 C38,54.7 35.3,52 32,52 L28,52 L28,54 C28,38.5 39.5,26 54,26 C68.5,26 80,38.5 80,54 L80,52 L76,52 C72.7,52 70,54.7 70,58 L70,68 C70,71.3 72.7,74 76,74 L82,74 C85.3,74 88,71.3 88,68 L88,54 C88,35.2 72.8,20 54,20 Z"/>
+</vector>
